@@ -43,6 +43,19 @@ jobs:
                   docker push ${DOCKER_USERNAME}/events-poc:latest
 
   commit-to-ops-repo:
+    executor: java-executor
+    steps:
+      - run: mkdir -p ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts
+      - run: mkdir -p workspace/deployment
+      - run: cd ~/events-poc/workspace/deployment && git clone git@github.com:simonwfarrow/events-poc-argocd.git
+      - run:
+          name: Updating deployment repo
+          command: >
+            cd ~/events-poc/workspace/deployment && wget https://github.com/mikefarah/yq/releases/download/3.4.1/yq_linux_amd64 && chmod +x yq_linux_amd64 &&
+            cd ~/events-poc/workspace/deployment/events-poc-argocd &&
+            ../yq_linux_amd64 w --inplace manifest/app/consumer.yml 'spec.template.spec.containers[name==events-poc].image' simonwfarrow/events-poc:${CIRCLE_SHA1} &&
+            git config user.email "simonwfarrow@gmail.com" && git config user.name "CircleCI WP-POC" && git add . && git commit -m "Automatic commit for new container ${CIRCLE_SHA1}" && git push origin master
+
 
 
 workflows:
@@ -58,3 +71,6 @@ workflows:
       - build-container:
           requires:
             - build
+      - commit-to-ops-repo:
+          requires:
+            - build-container
